@@ -44,15 +44,29 @@ class TransportWidget:
         self.source_state = 0
 
         # networking stuff
+        self.discard_own_messages = True
         self.mqtt_client = mqcl.Client(client_id=self.name, clean_session=True)
         self.mqtt_client.on_message = self.on_mqtt_message
+        self.mqtt_client.on_connect = self.on_mqtt_connect
 
         self.mqtt_client.connect(mqtt_broker_ip, 1883, 60)
         self.mqtt_client.subscribe("timing/beats", qos=0)
+        self.mqtt_client.subscribe("sampling", qos=1)
         self.mqtt_client.loop_start()
 
     def on_mqtt_message(self, client, userdata, msg):
-        pass
+        msg_dict = json.loads(msg.payload)
+        if not (self.discard_own_messages and msg_dict['sender_id'] == self.name):
+            if msg_dict['sender_id'] == self.name:
+                self.discard_own_messages = True
+            
+            self.source_state = msg_dict['state']['source']
+            self.sync_state = msg_dict['state']['sync']
+            self.rec_state = msg_dict['state']['record_pressed']
+
+    def on_mqtt_connect(self, client, userdata, flags, rc):
+        self.discard_own_messages = False  # enable fetching the last state from the broker
+        # will be turned off when the first message is processed
 
     def send_state(self):
         payload = json.dumps({'sender_id': self.name, 
@@ -69,12 +83,15 @@ class TransportWidget:
                 self.rec_state = 1  # set record button to pressed
             else:
                 self.rec_state = 0
+            self.send_state()
         for i, button_rect in enumerate(self.sync_button_rects):
             if button_rect.collidepoint(mousepos):
                 self.sync_state = i
+                self.send_state()
         for i, button_rect in enumerate(self.source_button_rects):
             if button_rect.collidepoint(mousepos):
                 self.source_state = i
+                self.send_state()
 
     def draw_labels(self, screen):
         """ Draw the labels of the sync switch buttons on the screen """

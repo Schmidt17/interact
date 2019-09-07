@@ -9,9 +9,9 @@ import pygame
 from ui_widgets import TransportWidget
 
 # fetch ip of mqtt broker
-mqtt_broker_ip = input("Type in IP of MQTT broker or press Enter to use 192.168.2.107:")
+mqtt_broker_ip = input("Type in IP or hostname of MQTT broker or press Enter to use localhost:")
 if mqtt_broker_ip == "":
-    mqtt_broker_ip = "192.168.2.107"
+    mqtt_broker_ip = "localhost"
 
 pygame.init()
 screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)

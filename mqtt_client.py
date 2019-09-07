@@ -47,7 +47,7 @@ class FaderWidget:
 		if not self.mqtt_client is None:
 			self.mqtt_client.publish("myChannel", json.dumps({'sender_id': my_name, 'val': self.value}), qos=0, retain=True)
 
-	def on_connect(self,client, userdata, flags, rc):
+	def on_connect(self, client, userdata, flags, rc):
 		self.discard_own_messages = False  # allow to accept one message from myself for getting the retained value
 
 	def update_value_mqtt(self, client, userdata, msg):
