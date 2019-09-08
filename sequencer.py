@@ -11,9 +11,8 @@ import pygame.midi
 from functools import partial
 
 class SequencerTrack:
-    def __init__(self, x, y, w, h, seq, nsteps=8, margin=30, shrink_pad=0.9):
+    def __init__(self, x, y, w, h, nsteps=8, margin=30, shrink_pad=0.9):
         self.nsteps = nsteps
-        self.parent_sequencer = seq
         
         # graphics stuff
         self.bounding_rect = pygame.Rect(int(x), int(y), int(w), int(h))
@@ -48,8 +47,9 @@ class SequencerTrack:
         return clicked_step
 
 class Sequencer:
-    def __init__(self, x, y, w, h, ntracks=4, mqtt_broker_ip="192.168.2.107"):
+    def __init__(self, x, y, w, h, ntracks=4, nsteps=8, mqtt_broker_ip="192.168.2.107"):
         self.ntracks = ntracks
+        self.nsteps = nsteps
         self.state = [[0] * self.nsteps] * self.ntracks
 
         # networking stuff
@@ -60,32 +60,39 @@ class Sequencer:
         self.mqtt_client.on_connect = self.on_mqtt_connect
 
         self.mqtt_client.connect(mqtt_broker_ip, 1883, 60)
+        self.mqtt_client.subscribe("sequencer/step", qos=1)
         self.mqtt_client.subscribe("sequencer/state", qos=1)
         self.mqtt_client.loop_start()
 
-        self.tracks = [SequencerTrack(0, i*h//4, w, h//4, seq=self, nsteps=8) for i in range(self.ntracks)]
+        self.tracks = [SequencerTrack(0, i*h//self.ntracks, w, h//self.ntracks, nsteps=self.nsteps) for i in range(self.ntracks)]
 
     def send_state(self):
         payload = json.dumps({'sender_id': self.name, 
                                 'state': self.state})
-        self.mqtt_client.publish("sampling", payload, qos=1, retain=True)
+        self.mqtt_client.publish("sequencer/state", payload, qos=1, retain=True)
+
+    def on_mqtt_connect(self, client, userdata, flags, rc):
+        self.discard_own_messages = False
 
     def on_mqtt_message(self, client, userdata, msg):
         msg_dict = json.loads(msg.payload)
-        if not (self.discard_own_messages and msg_dict['sender_id'] == self.name):
-            if msg_dict['sender_id'] == self.name:
-                self.discard_own_messages = True
-            
-            self.update_state(msg_dict['state'])
+        if 'step' in msg_dict:
+            self.update_step(msg_dict['step'])
+        elif 'state' in msg_dict:
+            if not (self.discard_own_messages and msg_dict['sender_id'] == self.name):
+                if msg_dict['sender_id'] == self.name:
+                    self.discard_own_messages = True
+                self.update_state(msg_dict['state'])
 
-    def on_mqtt_connect(self, client, userdata, flags, rc):
-        self.discard_own_messages = False  # enable fetching the last state from the broker
-        # will be turned off when the first message is processed
+    def update_step(self, new_step):
+        self.step = new_step
+        for track in self.tracks:
+            track.step = new_step
 
     def update_state(self, new_state):
         self.state = new_state
-        for track_state in new_state:
-            self.tracks.state = track_state
+        for track_id, track in enumerate(self.tracks):
+            track.state = new_state[track_id]
 
     def handle_click(self, click_pos):
         for track_id, track in enumerate(self.tracks):
