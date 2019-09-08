@@ -151,3 +151,35 @@ class TransportWidget:
             pygame.draw.rect(screen, (255, 0, 0), self.rec_stop_rect)
             pygame.draw.rect(screen, (255, 255, 255), self.rec_stop_rect, 2)
             pygame.draw.rect(screen, (255, 255, 255), self.rec_stop_icon_rect)
+
+
+class LatencyNudgeWidget:
+    def __init__(self, x, y, w, h, margin=30):
+        # graphics stuff
+        self.bounding_rect = pygame.Rect(x, y, w, h)
+        self.left_rect = pygame.Rect(x + margin, y + margin, w//2 - 2*margin, h - 2*margin)
+        self.right_rect = pygame.Rect(x + w//2 + margin, y + margin, w//2 - 2*margin, h - 2*margin)
+
+    def button_clicked(self, mousepos):
+        clicked_button = None
+        if self.left_rect.collidepoint(mousepos):
+            clicked_button = 'left'
+        elif self.right_rect.collidepoint(mousepos):
+            clicked_button = 'right'
+        return clicked_button
+
+    def draw(self, screen):
+        screen.fill((0, 0, 0), self.bounding_rect)
+
+        # blue buttons
+        pygame.draw.rect(screen, (0, 0, 255), self.left_rect)
+        pygame.draw.rect(screen, (0, 0, 255), self.right_rect)
+
+        # white triangles
+        triangle_half_width = 20
+        pygame.draw.polygon(screen, (255, 255, 255), [(self.left_rect.centerx - triangle_half_width, self.left_rect.centery),
+                                                      (self.left_rect.centerx + triangle_half_width, self.left_rect.centery - triangle_half_width),
+                                                      (self.left_rect.centerx + triangle_half_width, self.left_rect.centery + triangle_half_width)])
+        pygame.draw.polygon(screen, (255, 255, 255), [(self.right_rect.centerx - triangle_half_width, self.right_rect.centery + triangle_half_width),
+                                                      (self.right_rect.centerx - triangle_half_width, self.right_rect.centery - triangle_half_width),
+                                                      (self.right_rect.centerx + triangle_half_width, self.right_rect.centery)])
