@@ -18,12 +18,12 @@ MidiNote = namedtuple('MidiNote', ['channel', 'note'])
 
 
 class Sequencer:
-	def __init__(self, nsteps=8, ntracks=4, link=None):
+	def __init__(self, nsteps=8, ntracks=4):
 		self.nsteps = nsteps
 		self.ntracks = ntracks
 
 		self.step_state = [[0] * self.nsteps] * 4
-		self.midi_notes = [MidiNote(channel=10, note=36),  # check, if channel should be 11 due to 1-based count
+		self.midi_notes = [MidiNote(channel=10, note=36),
 						   MidiNote(channel=10, note=38), 
 						   MidiNote(channel=10, note=42), 
 						   MidiNote(channel=10, note=51)]
@@ -33,12 +33,24 @@ class Sequencer:
 		print(f"Connecting to MIDI out \"{pygame.midi.get_device_info(3)[1].decode()}\"")
 		self.midi_output = pygame.midi.Output(3)
 
+		# link stuff
 		self.beat = -1
+		self.last_state = (0., int(time.time() * 1e6), 120.)
 
-		self.last_state = (0., time.monotonic() * 1e6, 120.)
-		self.link = link
+		self.link = LinkToPy.LinkInterface("carabiner\\Carabiner.exe")
+		self.link.callbacks['status'] = self.update_link_state_callback
 		self.update_thread = threading.Thread(target=self.update_link_state, daemon=True)
 		self.update_thread.start()
+
+		# networking stuff
+		self.name = "live_sequencer"
+		mqtt_broker_ip = "localhost"
+		self.mqtt_client = mqcl.Client(client_id=self.name, clean_session=True)
+		self.mqtt_client.on_message = self.on_mqtt_message
+
+		self.mqtt_client.connect(mqtt_broker_ip, 1883, 60)
+		self.mqtt_client.subscribe("sequencer/state", qos=1)
+		self.mqtt_client.loop_start()
 
 	def midi_notes_on(self, notes: list):
 		t = pygame.midi.time()
@@ -48,57 +60,38 @@ class Sequencer:
 	def step_if_its_time(self):
 		t_live = int(time.time() * 1e6) + self.latency_correction
 		current_beat = self.last_state[0] + (t_live - self.last_state[1]) * self.last_state[2] / 60e6
-		red_beat = (int(current_beat) % 4) + 1
+		red_beat = int(current_beat) % len(self.step_state[0])
 		if red_beat != self.beat:
 			self.beat = red_beat
-			self.midi_notes_on([self.midi_notes[0], self.midi_notes[1]])
+			notes_on_list = []
+			for track_id in range(self.ntracks):
+				if self.step_state[track_id][self.beat]:
+					notes_on_list.append(self.midi_notes[track_id])
+			self.midi_notes_on(notes_on_list)
+
+			self.mqtt_client.publish("sequencer/step", json.dumps({'sender_id': self.name, 'step': self.beat}), qos=0, retain=False)
 
 	def update_link_state(self):
 		while True:
 			self.link.status()
 			time.sleep(0.1)
 
+	def update_link_state_callback(self, msg):
+		self.last_state = (msg['beat'], int(time.time() * 1e6), msg['bpm'])
+
 	def on_mqtt_message(self, client, userdata, msg):
-		state_dict = json.loads(msg.payload)
-		print(state_dict)
+		msg_dict = json.loads(msg.payload)
+		self.step_state = msg_dict['state']
 
 
 pygame.midi.init()
 
-link = LinkToPy.LinkInterface("carabiner\\Carabiner.exe")
-
-def print_phase(msg, seq):
-	# print(msg['phase'])
-	# print(msg)
-	seq.last_state = (msg['beat'], int(time.time() * 1e6), msg['bpm'])
-
-	# phase_beat = (int(msg['beat']) % 4) + 1
-	# if phase_beat != seq.beat:
-	# 	seq.beat = phase_beat
-	# 	seq.midi_notes_on([seq.midi_notes[0], seq.midi_notes[1]])
-	# 	print(phase_beat)	
-
-sequencer = Sequencer(link=link)
-
-link.callbacks['status'] = partial(print_phase, seq=sequencer)
-
-# networking stuff
-my_name = "live_sequencer"
-mqtt_broker_ip = "localhost"
-mqtt_client = mqcl.Client(client_id=my_name, clean_session=True)
-mqtt_client.on_message = on_mqtt_message
-
-mqtt_client.connect(mqtt_broker_ip, 1883, 60)
-mqtt_client.subscribe("sampling", qos=1)
-mqtt_client.loop_start()
+sequencer = Sequencer()
 
 try:
-	
-	while True:
-		
+	while True:		
 		sequencer.step_if_its_time()
 		time.sleep(0.01)
 except KeyboardInterrupt:
 	sequencer.midi_output.close()
-	del link
 	exit()
