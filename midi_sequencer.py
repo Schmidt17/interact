@@ -26,7 +26,7 @@ class Sequencer:
     def __init__(self, nsteps=8, ntracks=4):
         self.nsteps = nsteps
         self.ntracks = ntracks
-        self.steps_per_beat = 2
+        self.steps_per_beat = 4
 
         self.step_state = [[0] * self.nsteps] * 4
         self.midi_notes = [MidiNote(channel=10, note=36),
@@ -92,6 +92,7 @@ class Sequencer:
                 self.midi_notes_on(notes_on_list)
 
                 self.mqtt_client.publish("sequencer/step", json.dumps({'sender_id': self.name, 'step': self.step}), qos=0, retain=False)
+            time.sleep(0.01)
 
     def step(self, new_beat):
         print(new_beat)
@@ -169,8 +170,6 @@ if __name__ == "__main__":
 
     try:
         while True:
-            # sequencer.step_if_its_time()
-
             if nudge:
                 if parent_conn.poll():
                     nudge_value = parent_conn.recv()
