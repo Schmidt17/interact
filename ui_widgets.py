@@ -78,33 +78,34 @@ class TransportWidget:
                 self.source_state = msg_dict['state']['source']
                 self.sync_state = msg_dict['state']['sync']
                 self.rec_state = msg_dict['state']['record_pressed']
-            elif 'sample' in msg_dict:
-                if not self.sample_id is None and msg_dict['sample_id'] == self.sample_id:
-                    if not msg_dict['chunk_number'] in self.sample_chunks:
-                        self.sample_chunks[msg_dict['chunk_number']] = base64.b64decode(msg_dict['sample'])
-                        self.chunk_count += 1
+            # elif 'sample' in msg_dict:
+            #     print(msg_dict)
+            #     if not self.sample_id is None and msg_dict['sample_id'] == self.sample_id:
+            #         if not msg_dict['chunk_number'] in self.sample_chunks:
+            #             self.sample_chunks[msg_dict['chunk_number']] = base64.b64decode(msg_dict['sample'])
+            #             self.chunk_count += 1
 
-                if self.sample_id is None:
-                    self.sample_id = msg_dict['sample_id']
-                    self.sample_chunks[msg_dict['chunk_number']] = base64.b64decode(msg_dict['sample'])
-                    self.chunk_count += 1
+            #     if self.sample_id is None:
+            #         self.sample_id = msg_dict['sample_id']
+            #         self.sample_chunks[msg_dict['chunk_number']] = base64.b64decode(msg_dict['sample'])
+            #         self.chunk_count += 1
 
-                if msg_dict['sample_id'] == self.sample_id and self.chunk_count == msg_dict['num_chunks']:
-                    print("Saving .wav")
-                    sample = b''
-                    for i in range(self.chunk_count):
-                        sample += self.sample_chunks[i]
-                    self.sample_chunks = {}
-                    self.sample_id = None
-                    self.chunk_count = 0
+            #     if msg_dict['sample_id'] == self.sample_id and self.chunk_count == msg_dict['num_chunks']:
+            #         print("Saving .wav")
+            #         sample = b''
+            #         for i in range(self.chunk_count):
+            #             sample += self.sample_chunks[i]
+            #         self.sample_chunks = {}
+            #         self.sample_id = None
+            #         self.chunk_count = 0
 
-                    wfile = wave.open(os.path.join(self.sample_folder, self.source_labels[msg_dict['rec_channel']] + "_" + time.strftime("%H%M%S") + ".wav"), 'w')
-                    wfile.setnchannels(1)
-                    wfile.setsampwidth(2)
-                    wfile.setframerate(44100)
+            #         wfile = wave.open(os.path.join(self.sample_folder, self.source_labels[msg_dict['rec_channel']] + "_" + time.strftime("%H%M%S") + ".wav"), 'w')
+            #         wfile.setnchannels(1)
+            #         wfile.setsampwidth(2)
+            #         wfile.setframerate(44100)
 
-                    wfile.writeframes(sample)
-                    wfile.close()
+            #         wfile.writeframes(sample)
+            #         wfile.close()
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
         self.discard_own_messages = False  # enable fetching the last state from the broker
