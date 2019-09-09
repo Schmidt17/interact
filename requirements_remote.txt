@@ -1,0 +1,4 @@
+paho-mqtt
+pygame
+numpy
+edn_format
