@@ -19,7 +19,7 @@ pygame.display.set_caption("The Sample Maker")
 width, height = screen.get_width(), screen.get_height()
 
 # create the UI widget objects
-transport_widget = TransportWidget(100, 100, width-200, height-200, mqtt_broker_ip=mqtt_broker_ip)
+transport_widget = TransportWidget(100, 200, width-200, height-500, mqtt_broker_ip=mqtt_broker_ip)
 
 # collect the event handlers
 # call those on clicking the mouse, passing the mouse coordinates as a tuple

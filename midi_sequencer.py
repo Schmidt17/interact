@@ -4,6 +4,7 @@ Client for running a sequencer on the "sampling computer".
 Receives the state from the remote sequencer user interface. 
 Syncs with Live via Ableton Link and triggers the MIDI notes.
 """
+
 import paho.mqtt.client as mqcl
 import json
 import pygame.midi
@@ -79,7 +80,7 @@ class Sequencer:
             # if t_live > self.last_state['time']:
             current_beat = self.last_state['beat'] + (t_live - self.last_state['time']) * self.last_state['bpm'] / 60e6
             current_step = int(self.steps_per_beat * current_beat)
-            
+
             if current_step > self.beat:
                 red_step = current_step % len(self.step_state[0])
                 self.beat = current_step

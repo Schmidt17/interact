@@ -2,6 +2,11 @@ import pygame
 import pygame.gfxdraw
 import paho.mqtt.client as mqcl
 import json
+import numpy as np
+import base64
+import wave
+import os
+import time
 
 class TransportWidget:
     """
@@ -10,6 +15,7 @@ class TransportWidget:
     """
     def __init__(self, x, y, w, h, mqtt_broker_ip="192.168.2.107"):
         self.name = "sampling_launcher"
+        self.sample_folder = "samples"
 
         # graphics stuff
         self.bounding_rect = pygame.Rect(x, y, w, h)
@@ -28,22 +34,28 @@ class TransportWidget:
         self.sync_button_width = int(0.85 * w / 3.)
         self.sync_button_height = 80
         self.sync_button_spacing = w // 3
-        self.sync_button_rects = [pygame.Rect(x + (self.sync_button_spacing - self.sync_button_width)//2 + i*self.sync_button_spacing, y + self.row_spacing, self.sync_button_width, self.sync_button_height)
-                                for i in range(3)]
-        self.sync_labels = ["None", "1 beat", "1 bar"]
+        # self.sync_button_rects = [pygame.Rect(x + (self.sync_button_spacing - self.sync_button_width)//2 + i*self.sync_button_spacing, y + self.row_spacing, self.sync_button_width, self.sync_button_height)
+        #                         for i in range(3)]
+        self.sync_button_rects = []
+        # self.sync_labels = ["None", "1 beat", "1 bar"]
+        self.sync_labels = []
 
         # rec/stop button
-        self.button_width = 200
+        self.button_width = 300
         self.icon_width = int(self.button_width * 0.5)
         self.rec_stop_rect = pygame.Rect(x + w//2 - self.button_width//2, y + 2 * self.row_spacing, self.button_width, self.button_width)
         self.rec_stop_icon_rect = pygame.Rect(x + w//2 - self.icon_width//2, self.rec_stop_rect.centery - self.icon_width//2, self.icon_width, self.icon_width)
 
         # interaction stuff
         self.rec_state = 0  # 0: stopped, 1: record pressed
-        self.sync_state = 2
+        self.sync_state = 0
         self.source_state = 0
 
         # networking stuff
+        self.sample_id = None
+        self.sample_chunks = {}
+        self.chunk_count = 0
+
         self.discard_own_messages = True
         self.mqtt_client = mqcl.Client(client_id=self.name, clean_session=True)
         self.mqtt_client.on_message = self.on_mqtt_message
@@ -52,17 +64,47 @@ class TransportWidget:
         self.mqtt_client.connect(mqtt_broker_ip, 1883, 60)
         self.mqtt_client.subscribe("timing/beats", qos=0)
         self.mqtt_client.subscribe("sampling", qos=1)
+        self.mqtt_client.subscribe("sampling/data", qos=1)
         self.mqtt_client.loop_start()
 
     def on_mqtt_message(self, client, userdata, msg):
         msg_dict = json.loads(msg.payload)
+
         if not (self.discard_own_messages and msg_dict['sender_id'] == self.name):
             if msg_dict['sender_id'] == self.name:
                 self.discard_own_messages = True
             
-            self.source_state = msg_dict['state']['source']
-            self.sync_state = msg_dict['state']['sync']
-            self.rec_state = msg_dict['state']['record_pressed']
+            if 'state' in msg_dict:
+                self.source_state = msg_dict['state']['source']
+                self.sync_state = msg_dict['state']['sync']
+                self.rec_state = msg_dict['state']['record_pressed']
+            elif 'sample' in msg_dict:
+                if not self.sample_id is None and msg_dict['sample_id'] == self.sample_id:
+                    if not msg_dict['chunk_number'] in self.sample_chunks:
+                        self.sample_chunks[msg_dict['chunk_number']] = base64.b64decode(msg_dict['sample'])
+                        self.chunk_count += 1
+
+                if self.sample_id is None:
+                    self.sample_id = msg_dict['sample_id']
+                    self.sample_chunks[msg_dict['chunk_number']] = base64.b64decode(msg_dict['sample'])
+                    self.chunk_count += 1
+
+                if msg_dict['sample_id'] == self.sample_id and self.chunk_count == msg_dict['num_chunks']:
+                    print("Saving .wav")
+                    sample = b''
+                    for i in range(self.chunk_count):
+                        sample += self.sample_chunks[i]
+                    self.sample_chunks = {}
+                    self.sample_id = None
+                    self.chunk_count = 0
+
+                    wfile = wave.open(os.path.join(self.sample_folder, self.source_labels[msg_dict['rec_channel']] + "_" + time.strftime("%H%M%S") + ".wav"), 'w')
+                    wfile.setnchannels(1)
+                    wfile.setsampwidth(2)
+                    wfile.setframerate(44100)
+
+                    wfile.writeframes(sample)
+                    wfile.close()
 
     def on_mqtt_connect(self, client, userdata, flags, rc):
         self.discard_own_messages = False  # enable fetching the last state from the broker
