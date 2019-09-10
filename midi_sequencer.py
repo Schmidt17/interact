@@ -50,7 +50,7 @@ class Sequencer:
         self.last_state = {'beat': 0., 'time': int(time.time() * 1e6), 'bpm': 120.}
         self.last_when = 0.
 
-        self.link = LinkInterface("carabiner\\Carabiner.exe")
+        self.link = LinkInterface()  # make sure that carabiner is running before calling this
         self.link.callbacks['status'] = self.update_link_state_callback
         self.link.callbacks['phase-at-time'] = self.phase_at_time_callback
         self.update_thread = threading.Thread(target=self.update_link_state, daemon=True)

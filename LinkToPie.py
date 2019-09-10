@@ -13,7 +13,7 @@ class LinkInterface():
     """A simple python client to communicate with carabiner (a Abelton Link connector)
         Carabiner server must be running to use. Requires edn_format [$pip install edn_format]"""
 
-    def __init__(self, path_to_carabiner, tcp_ip='127.0.0.1', tcp_port=17000, buffer_size=1024, callbacks=None):
+    def __init__(self, path_to_carabiner=None, tcp_ip='127.0.0.1', tcp_port=17000, buffer_size=1024, callbacks=None):
         self._tcp_ip = tcp_ip
         self._tcp_port = tcp_port
         self._buffer_size = buffer_size
